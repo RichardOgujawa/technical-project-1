@@ -1,0 +1,163 @@
+\documentclass[12pt, a4paper, twocolumn]{article}
+
+% Installing Packages
+\usepackage{graphicx}
+\usepackage{capt-of}
+\usepackage{hyperref}
+\usepackage{enumitem}
+
+% Settings
+\setlength{\oddsidemargin}{0.5cm}
+\setlength{\evensidemargin}{0.5cm}
+\setlength{\topmargin}{-1.6cm}
+\setlength{\leftmargin}{0.5cm}
+\setlength{\rightmargin}{0.5cm}
+\setlength{\textheight}{24.00cm} 
+\setlength{\textwidth}{15.00cm}
+\parindent 0pt
+\setlength{\parskip}{4pt}
+\pagestyle{plain}
+
+\title{\textbf{Technical Project I}}
+\author{Richard Ogujawa (L00145067)}
+\date{\today}
+
+
+\newcommand{\namelistlabel}[1]{\mbox{#1}\hfil}
+% Custom function to Render Figures
+\newcommand{\screenshot}[3]{%
+\begin{center}
+    \includegraphics[width=1\linewidth]{#1}%
+    \captionof{figure}{#2}%
+    \label{fig:#3}%
+\end{center}%
+}
+
+\newenvironment{namelist}[1]{%1
+\begin{list}{}
+    {
+        \let\makelabel\namelistlabel
+        \settowidth{\labelwidth}{#1}
+        \setlength{\leftmargin}{1.1\labelwidth}
+    }
+  }{%1
+\end{list}}
+
+\begin{document}
+\maketitle
+
+\begin{namelist}{}
+\item[{\bf Title:}]
+	Technical Project I
+\item[{\bf Supervisor:}]
+	Professor Shagufta Henna 
+\item[{\bf Degree:}]
+	MSc Data Science
+\end{namelist}
+
+\section{Executive Summary}
+
+\subsection{Introduction}
+Accompanying the increase of the number of vehicles on the road (Nealon, 2023), came an increase in the number of road fatalities. According to a statement by Statement by Jonathan Adkins, CEO of Governors Highway Safety Association (GHSA): "Traffic deaths have surged 30\% over the past decade, with nearly 10,000 more fatalities when compared to 32,893 in 2013." Innovations are being made towards mitigating this, such as smart systems and head-up displays in cars, however the issue persists. The goal of this project was to contribute to the concerted efforts made towards making the roads safer. 
+
+\subsection{Objectives}
+The primary objectives of this project was to produce a Machine Learning (ML) model that would be able to make predictions regarding the likelihood of a severe crash given a set of parameters like time, date and location, to help caution drivers and encourage safer driving.
+
+\subsection{Findings}
+The dataset provided didn't have any underlying structure upon which a reliable model could be generated to solve this particular problem. 
+
+\section{Dataset Description}
+In order to conduct this project, the 'Motor Vehicle Collisions Crashes' table was used. It contains over 2.04 million rows of data and 29 columns. Sourced from NYC police reports the dataset comprises observations summarising the details of a large number of road crashes which occurred in New York City dating back to July 2012. The dataset is regularly updated, as such, it also includes the most recent motor vehicle collisions.
+
+\section{Methods}
+\subsection{Stage 1: Loading the Data}
+Due to the large size of the data the dataset was uploaded to Google Drive, and subsequently retrieved using the \texttt{drive.mount()} static method from the google.colab module. 
+
+\subsection{Understanding The Data}
+Once loaded, the metadata was inspected to provide a deeper understanding of the data being analysed. This provided some insights into, for example, what data cleaning/transformation processes needed to be done before the dataset could progress to the Feature Engineering stage. The following was gleaned during the inspection of the metadata:
+\begin{itemize}
+    \item \textbf{Some columns stored strings:} Models tend to work better with numeric data, so the presence of these string values meant that some method needed to be applied to transform these occurrences of non-numeric data into numeric data before progressing.
+    \item \textbf{There are null values present:} This meant that some method(s) needed to be applied to appropriately handle the null values present in the dataset.
+\end{itemize}
+
+\screenshot{describe.png}{MetaData Description for Dataset}{metadata-desc}
+
+\subsection{Stage 2: Data Cleaning and Transformation}
+\subsubsection{Converting String Dates to Datetime Data Type}
+According to the metadata provided so far, two of the columns which were expected to become features - 'CRASH DATE' and 'CRASH TIME' - were stored as strings. However, for use in this project, they were converted to a more appropriate datatype - datetime. 
+
+Also, rather than using specific crash dates and times, they were converted into crash day, month and hour to allow for more generic use. For example, instead of making predictions based on specific dates or times, predictions could now be generalised to a certain day of the week, month, or hour of a particular crash.
+\screenshot{data-trans.png}{Converting Strings Dates to Datetime Data Type}{strings-to-dates}
+
+\subsubsection{Handling Null Values}
+After rectifying this, there still existed the issue of the null values present in the dataset. Missing data impede upon ML algorithms and their ability to affirm assumptions upon which they can generate suitable models. 
+
+The decided-upon method implemented to handle this issue was data enrichment.
+
+The only attribute this was done for was the 'BOROUGH' column (which specified the borough that the crash occurred in). The reason why this specific location-related attribute was chosen was because there are only 5 boroughs in New York, which can easily be converted into numeric data. Similar to the reasoning for extracting hours, months and days from 'CRASH DATE' and 'CRASH TIME', the focus on boroughs as opposed to exact locations, would allow for more broadly-scoped analyses.
+
+For the places where borough name were missing, requests were made to the Google Maps API using the longitude and latitude values present in the row to obtain the full address that belonged to that coorindate. The corresponding borough was then extracted from that address using regular expressions. Given that the dataset is so big, this data enrichment process was done in batches using 1,000 rows at a time.
+
+After the data had been processed it was stored in a table in SQLite.
+\screenshot{get-borough.png}{Data Enrichment using Google Maps API PT.I}{data-enrichment}
+
+The newly formed dataframe and the original one were merged using a left outer join on the collision\_id column. This ensured that all of the data from the original dataframe was included in the merged dataframe. Finally only the columns deemed to be essential for the project were kept in the dataframe and null values were dropped.
+
+In the research proposal, the column 'VEHICLE TYPE CODE 1' was suggested as a possible feature for the model. However, upon further investigation it was apparent that it would be difficult to use given that there were over 1,590 unique values in it. To allow for this column, as well as the other columns that share a like name ('VEHICLE TYPE CODE 2', 'VEHICLE TYPE CODE 3', etc.) to be used they would first need to be placed in categories which generalise the data values, and provide the possibility for one-hot encoding. However, the values present in this column range from clear and concise vehicle descriptions such as 'Sedan' or 'Taxi' to more obscure entries, such as 'sanit' or 'OMT'. Trying to guess the categories of the more obscure values would potentially produce inaccurate training data for the Machine learning algorithm, resulting in the production of an inaccurate model.
+
+The 'CONTRIBUTING FACTOR VEHICLE' columns were omitted for a similar reason.
+\screenshot{vehicle-type-code-1.png}{Number of Unique Values for 'VEHICLE TYPE CODE 1' Column}{vehicle-type-code-1}
+
+\subsubsection{Turning Categorical Data into Numeric Data}
+As was aforementioned, the 'BOROUGH' column was going to be used in the predictive model and ,therefore, had to be transformed into some form of numeric data. Given that it was nominal categorical data with more than two classes, one-hot encoding was implemented instead of label-encoding.
+
+The final part of the data transformation process was to check for class imbalances and resolve them if present. In order to do this, the label was generated for the dataframe, which was simply a summation of 8 other columns which together gave the total of how many people were injured or died as a result of a given crash. Then the code checked if this value was greater than 0, if so then the crash was a severe crash and it was given a True value, and if not then it was given a False value. These boolean values are then converted to the integers 1 and 0 respectively.
+\screenshot{hurt-or-died.png}{Checking Class Imbalances}{class-imbalances}
+
+\subsection{Stage 3: Feature Engineering}
+It was evident that not all the features would be useful to the training of the model as such, only the important ones were kept. 
+After selecting the features, the data was investigated to reveal any patterns, relationships or correlations that would help provide some intuition about how the predictions would likely turn out. An interesting relationship to consider was the correlation between the features, as well as the correlation between each feature and the label. A few graphs and plots were created in Tableau to help visualise these relationships.
+\screenshot{tableau-dashboard.png}{Graphs and Plots in Tableau Dashboard}{tableau-dashboard}
+
+
+\subsubsection{Feature Analysis}
+A correlation matrix was also generate to deduce how much each feature is affected by another. Based on the heatmap that the correlation matrix generated it's evident that there are no strong inter-columnar relationships present in the dataset. 
+
+The strongest relationships that existed between the columns were the relationships between the borough-related columns which made sense because one-hot encoding was used to generate these columns. Therefore, the presence of a 1.0 value in one column necessitated the presence of a 0.0 value in all of the other borough-related columns.  
+
+The correlation between the features and the label was also plotted and visualised using a heatmap. It was then sorted from the strongest correlation to the weakest to identify which columns had the most effect on the label. It was evident that all of the features had little to no effect on the label.
+\screenshot{heatmap-2.png}{Heatmap Showing Correlation Between Features and Label}{heatmap-2}
+
+
+\subsubsection{Principal Component Analysis(PCA)}
+PCA was used to improve the quality of the features to aid in the production of an reliable model. To ensure an accurate result from the PCA algorithm, the data is normalised to the same scale before PCA is applied.
+\screenshot{pca.png}{Applying PCA}{appying-pca}
+
+
+After graphing the Explained Variance Ratio, it was clear that only seven components were required to explain 100\% of the variance for the dataset, given that the knee point of the curve was at the seventh component.
+\screenshot{pca-2.png}{PCA was Re-Applied Using Optimal Number of Components}{pca-reapplied}
+
+\subsection{Stage 4: Model Selection}
+As was expressed in the project proposal, the Bagging Estimator AND Random Forest algorithms were the algorithms chosen for this project. They were chosen due to the fact that they both provided classifiers and also had measures in place to reduce variance (the models sensitivity to noise in the training data). These measures therefore resulted in models less prone to over-fitting, and more likely to produce more accurate generalisations, which is highly important given the severity of the problem that the model is being designed to solve.
+
+Added to this, an Support Vector Machine (SVM) algorithm and a Stacking Classifier algorithm were also implemented with the goal of producing more accurate models after failing to do so using the previously mentioned classifiers. These two models were picked because: (1) SVMs tend to be effective at capturing complex patterns in data, which the other two estimators seemed to be struggling to do. (2) The Stacking Classifier is an ensemble method and as such was chosen to combine all of the estimators and hopefully average better predictions.
+
+GridSearchCV was also implemented to find the best hyper-parameters for each model. A handful of parameters were chosen and tweaked over time to arrive at an optimal set of parameters given the dataset. This took the models from being simple traditional models to being more complex and better-suited to the specific situation it was being created for.
+
+\section{Conclusion and Results}
+Despite applying PCA, converting non-numeric data to numeric data, trying various sample sizes and testing out a number of hyper-parametric configurations the key performance metrics (accuracy score, recall, precision and f1 score) remained around 0.5. This suggested that the dataset lacked the underlying structure (or set of relationships) necessary to produce a model which would make accurate predictions given the initial set of hypotheses.
+
+\screenshot{results-1.png}{Performance of the Different Models at Different Sample Sizes}{models-performance}
+\screenshot{results-2.png}{ROC Curve for the Performance of the Different Models at Different Sample Sizes}{models-performance-2}
+
+The failure of this project to produce a suitable model highlights the importance of feature analysis and a deeper understanding of the dataset prior to committing it to a entire analytical pipeline, which will be a primary focus going forward. 
+
+\section*{References} 
+- Nealon. (2023). 2023 Car ownership statistics. [Online] Available at: https://www.bankrate.com/insurance/car/car-ownership-statistics/ [Accessed 2 December 2023].
+
+- GHSA. (2023). 2023 Small Decrease in 2022 Traffic Deaths Sustains Pandemic-Fueled Surge... [Online] Available at: https://www.ghsa.org/resources/news-releases/NHTSA-2022-Traffic-Deaths23 [Accessed 2 December 2023].
+
+
+\end{document}
+
+
